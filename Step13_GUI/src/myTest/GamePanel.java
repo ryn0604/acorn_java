@@ -25,9 +25,20 @@ import javax.swing.Timer;
 
 public class GamePanel extends JPanel{
 	//필요한 필드 정의
-	Image unitImage, backImage1, backImage2, backImage3, bossImage3, playMissImage, bossMissImage, bossImage1, bossImage2;
+	Image backImage1, backImage2, backImage3, bossImage3, bossImage1, bossImage2;
+	
 	// Player 객체
     Player player;
+    
+    // Player Image 객체를 저장할 방 2개짜리 배열 객체 미리 준비
+    Image[] playImgs = new Image[2];
+    // 플레이어 이미지 인덱스
+    int playIndex;
+    // 메소드 호출횟수를 누적할 필드
+    int playCount;
+    
+    // Missile Image 객체를 저장할 방 4개짜리 배열 객체 미리 준비
+    Image[] missileImgs = new Image[4]; 
    
     //플레이어가 보스랑 충돌한 후 쿨타임
     int playerHitCoolTime;
@@ -57,25 +68,27 @@ public class GamePanel extends JPanel{
 		// Panel 의 크기 설정 width:500, height:800
 		setPreferredSize(new Dimension(500, 800));
 		
-		// src/images/unit1.png 파일의 위치를 URL 객체로 얻어내기 
-		URL url = getClass().getResource("/images/unit1.png");
- 		
-		// src/images/unit1.png 파일을 로딩해서 Image 객체로 만들기
-		unitImage = new ImageIcon(url).getImage();
+		// 플레이어 이미지
+		playImgs[0] = new ImageIcon(getClass().getResource("/images/unit1.png")).getImage();
+		playImgs[1] = new ImageIcon(getClass().getResource("/images/unit2.png")).getImage();
 		// 배경 이미지
 		backImage1 = new ImageIcon(getClass().getResource("/images/backbg.png")).getImage();
 		backImage2 = new ImageIcon(getClass().getResource("/images/backbg2.png")).getImage();
 		backImage3 = new ImageIcon(getClass().getResource("/images/backbg3.png")).getImage();
-		// 미사일 이미지
-		playMissImage = new ImageIcon(getClass().getResource("/images/mi2.png")).getImage();
-		bossMissImage = new ImageIcon(getClass().getResource("/images/mi3.png")).getImage();
+		
+		// 미사일 이미지	
+		missileImgs[0] = new ImageIcon(getClass().getResource("/images/mi1.png")).getImage(); // player
+		missileImgs[1] = new ImageIcon(getClass().getResource("/images/mi2.png")).getImage(); // boss stage 1,2
+		missileImgs[2] = new ImageIcon(getClass().getResource("/images/mi3.png")).getImage(); // 재사용 가능
+		missileImgs[3] = new ImageIcon(getClass().getResource("/images/mi4.png")).getImage(); // boss stage 3
+
 		// 보스 이미지
 		bossImage1 = new ImageIcon(getClass().getResource("/images/juck1.png")).getImage();
 		bossImage2 = new ImageIcon(getClass().getResource("/images/juck2.png")).getImage();
 		bossImage3 = new ImageIcon(getClass().getResource("/images/juck3.gif")).getImage();
 		
 		// Player 생성 (초기 위치, 체력 10, 이미지)
-        player = new Player(250, 700, 10, unitImage);
+        player = new Player(250, 700, 10, playImgs[playIndex]);
         
 		move = new Move();
 		addKeyListener(new KeyAdapter() {
@@ -241,6 +254,9 @@ public class GamePanel extends JPanel{
 	protected void paintComponent(Graphics g) {
 		super.paintComponent(g);
 		
+		// 메소드 호출 증가시키기
+		playCount++;
+		
 		// 배경 그리기
 		if (stage == 1) {
 	        g.drawImage(backImage1, 0, back1Y, 500, 800, this);
@@ -257,12 +273,22 @@ public class GamePanel extends JPanel{
 		for(int i=0; i<playMissList.size(); i++) {
 			// i 번째 미사일 객체
 			Missile m = playMissList.get(i);
-			g.drawImage(playMissImage, m.getX()-10, m.getY()-15, 20, 30, this);		
+			g.drawImage(missileImgs[1], m.getX()-10, m.getY()-15, 20, 30, this);		
 		}
 		
 		// 플레이어 그리기
-        g.drawImage(player.getImage(), player.getX() - 50, player.getY() - 50, 100, 100, this);
+        g.drawImage(playImgs[playIndex], player.getX() - 50, player.getY() - 50, 100, 100, this);
 		
+        if(playCount%10 == 0) {
+			// 드래곤 unitIndex 1 증가
+        	playIndex++;
+			// 만일 존재하지 않은 인덱스라면
+			if(playIndex == 2) {
+				// 인덱스를 다시 0으로 변경
+				playIndex = 0;
+			}
+		}
+        
 		// 보스가 보이는 상태면 그리기
      // 보스가 보이는 상태면 그리기
         if (boss.isVisible()) {
@@ -298,7 +324,17 @@ public class GamePanel extends JPanel{
 		        m.setRemove(true);
 		    }
 
-		    g.drawImage(bossMissImage, m.getX() - 10, m.getY(), 20, 20, this);
+		    // 스테이지 별 보스 미사일 변경
+		    Image bossMissileImg;
+		    if (stage == 1) {
+		        bossMissileImg = missileImgs[2]; // mi2.png
+		    } else if (stage == 2) {
+		        bossMissileImg = missileImgs[0]; // mi1.png
+		    } else {
+		        bossMissileImg = missileImgs[3]; // mi4.png
+		    }
+
+		    g.drawImage(bossMissileImg, m.getX() - 10, m.getY(), 20, 20, this);
 
 		    // 충돌 판정
 		    if (playerHitCoolTime == 0) {
@@ -307,7 +343,15 @@ public class GamePanel extends JPanel{
 		        int mx = m.getX();
 		        int my = m.getY();
 
-		        if (mx > px && mx < px + 100 && my > py && my < py + 100) {
+		        // 사람 중심부 히트박스 (예: 40x40 크기)
+		        int hitboxX = px + 30;
+		        int hitboxY = py + 30;
+		        int hitboxW = 40;
+		        int hitboxH = 40;
+
+		        if (mx >= hitboxX && mx <= hitboxX + hitboxW &&
+		            my >= hitboxY && my <= hitboxY + hitboxH) {
+		            
 		            player.decreaseHp(1);
 		            m.setRemove(true);
 		            playerHitCoolTime = 60;
